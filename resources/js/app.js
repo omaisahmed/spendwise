@@ -19,6 +19,25 @@ window.togglePrivacy = () => {
 };
 
 const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+const themeStorageKey = 'spendwise_theme_setting';
+
+const storedTheme = () => {
+    try {
+        const setting = localStorage.getItem(themeStorageKey);
+
+        return ['system', 'light', 'dark'].includes(setting) ? setting : null;
+    } catch {
+        return null;
+    }
+};
+
+const rememberTheme = (setting) => {
+    try {
+        localStorage.setItem(themeStorageKey, setting);
+    } catch {
+        // Storage can be unavailable in restricted webviews.
+    }
+};
 
 const resolveTheme = (setting) => {
     if (setting === 'system') {
@@ -36,6 +55,7 @@ const persistTheme = (setting) => {
     fetch(endpoint, {
         method: 'PATCH',
         credentials: 'same-origin',
+        keepalive: true,
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -50,6 +70,8 @@ window.setTheme = (setting, persist = true) => {
 
     const root = document.documentElement;
     const resolved = resolveTheme(setting);
+
+    rememberTheme(setting);
 
     root.dataset.themeSetting = setting;
     root.dataset.theme = resolved;
@@ -134,12 +156,110 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+const resetSwipe = (row) => {
+    const content = row.querySelector('[data-swipe-content]');
+
+    if (!content) return;
+
+    row.classList.remove('is-swiping', 'is-dismissing');
+    content.style.transform = '';
+};
+
+const setupNotificationSwipes = () => {
+    const rows = Array.from(document.querySelectorAll('[data-swipe-row]'));
+
+    rows.forEach((row) => {
+        const content = row.querySelector('[data-swipe-content]');
+        const form = row.querySelector('[data-swipe-form]');
+
+        if (!content || !form) return;
+
+        let startX = 0;
+        let startY = 0;
+        let offset = 0;
+        let tracking = false;
+        let horizontal = false;
+
+        const stopTracking = () => {
+            tracking = false;
+            horizontal = false;
+        };
+
+        content.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' && event.button !== 0) return;
+            if (event.target.closest?.('a, button, input, select, textarea, label')) return;
+
+            rows.forEach((other) => {
+                if (other !== row) resetSwipe(other);
+            });
+
+            startX = event.clientX;
+            startY = event.clientY;
+            offset = 0;
+            tracking = true;
+            horizontal = false;
+
+            content.setPointerCapture?.(event.pointerId);
+        });
+
+        content.addEventListener('pointermove', (event) => {
+            if (!tracking) return;
+
+            const deltaX = event.clientX - startX;
+            const deltaY = event.clientY - startY;
+
+            if (!horizontal) {
+                if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) return;
+
+                if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+                    stopTracking();
+                    return;
+                }
+
+                horizontal = true;
+                row.classList.add('is-swiping');
+            }
+
+            event.preventDefault();
+            offset = Math.min(0, Math.max(deltaX, -120));
+            content.style.transform = `translateX(${offset}px)`;
+        }, { passive: false });
+
+        const finishSwipe = () => {
+            if (!tracking && !horizontal) return;
+
+            const shouldDelete = horizontal && offset <= -72;
+
+            stopTracking();
+
+            if (shouldDelete) {
+                row.classList.remove('is-swiping');
+                row.classList.add('is-dismissing');
+                content.style.transform = '';
+
+                window.setTimeout(() => form.submit(), 180);
+
+                return;
+            }
+
+            resetSwipe(row);
+        };
+
+        content.addEventListener('pointerup', finishSwipe);
+        content.addEventListener('pointercancel', () => {
+            stopTracking();
+            resetSwipe(row);
+        });
+    });
+};
+
 window.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('spendwise_hide_amounts') === '1') {
         document.body.classList.add('hide-amounts');
     }
 
-    setTheme(document.documentElement.dataset.themeSetting || 'system', false);
+    setTheme(storedTheme() || document.documentElement.dataset.themeSetting || 'system', false);
+    setupNotificationSwipes();
 
     const hiddenAt = Number(localStorage.getItem(hiddenAtKey));
     localStorage.removeItem(hiddenAtKey);

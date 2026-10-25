@@ -80,6 +80,14 @@ class OnboardingLockTest extends TestCase
         $this->get(route('dashboard'))->assertOk();
     }
 
+    public function test_refreshing_the_unlock_url_returns_to_the_lock_screen(): void
+    {
+        AppSetting::current()->update(['onboarding_completed' => true]);
+        AppSettings::forget();
+
+        $this->get(route('lock.unlock.show'))->assertRedirect(route('lock.show'));
+    }
+
     public function test_idle_sessions_lock_and_unlock_returns_to_the_intended_page(): void
     {
         AppSetting::current()->update(['onboarding_completed' => true]);

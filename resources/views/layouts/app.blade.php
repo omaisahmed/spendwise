@@ -16,8 +16,16 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23635BFF'/%3E%3Cpath d='M19 25h26M19 33h18M19 41h11' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
     <script>
         (() => {
-            const setting = @json($themeSetting);
+            const stored = (() => {
+                try {
+                    return localStorage.getItem('spendwise_theme_setting');
+                } catch {
+                    return null;
+                }
+            })();
+            const setting = ['system', 'light', 'dark'].includes(stored) ? stored : @json($themeSetting);
             const dark = setting === 'dark' || (setting === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.dataset.themeSetting = setting;
             document.documentElement.dataset.theme = dark ? 'dark' : 'light';
         })();
     </script>

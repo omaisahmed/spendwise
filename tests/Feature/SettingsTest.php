@@ -78,6 +78,20 @@ class SettingsTest extends TestCase
         $this->assertSame('Oct 26, 2026', AppSettings::formatDate($date));
     }
 
+    public function test_security_forms_submit_put_requests(): void
+    {
+        $this->put(route('settings.security'), [
+            'action' => 'enable',
+            'pin' => '1234',
+            'pin_confirmation' => '1234',
+        ])->assertRedirect(route('settings.index'));
+
+        $response = $this->get(route('settings.index'))->assertOk();
+
+        $response->assertSee('action="'.route('settings.security').'"', false);
+        $this->assertSame(3, substr_count($response->getContent(), 'name="_method" value="PUT"'));
+    }
+
     public function test_theme_can_be_applied_immediately_and_is_persisted(): void
     {
         $this->patchJson(route('settings.theme'), ['theme' => 'dark'])

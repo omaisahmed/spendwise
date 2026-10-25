@@ -40,41 +40,47 @@
                     [$tone, $icon] = $tones[$notification->type] ?? ['brand', 'bell'];
                     $isUnread = $notification->read_at === null;
                 @endphp
-                <article class="card p-3.5 {{ $isUnread ? 'border-[color-mix(in_srgb,var(--brand)_24%,var(--line))]' : 'opacity-75' }}">
-                    <div class="flex items-start gap-3">
-                        <span class="icon-bubble h-9 w-9 flex-[0_0_36px] rounded-xl bg-[var(--{{ $tone }}-soft)] text-[var(--{{ $tone }})]">
-                            <x-icon :name="$icon" class="h-4 w-4" />
-                        </span>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-start gap-2">
-                                <h2 class="min-w-0 flex-1 text-[0.78rem] font-semibold leading-snug">{{ $notification->title }}</h2>
-                                @if($isUnread)<span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]"></span>@endif
-                            </div>
-                            <p class="mt-1 text-[0.68rem] leading-relaxed text-[var(--muted)]">{{ $notification->body }}</p>
-                            <div class="mt-2 flex items-center gap-3">
-                                <span class="text-[0.58rem] text-[var(--muted)]">{{ $notification->created_at->diffForHumans() }}</span>
-                                @if(!empty($notification->data['url']))
-                                    <form method="POST" action="{{ route('notifications.open', $notification) }}">
+                <div class="swipe-row" data-swipe-row>
+                    <div class="swipe-action" aria-hidden="true">
+                        <x-icon name="trash-2" class="h-4 w-4" />
+                        <span>Delete</span>
+                    </div>
+                    <article class="card swipe-content p-3.5 {{ $isUnread ? 'border-[color-mix(in_srgb,var(--brand)_24%,var(--line))]' : 'opacity-75' }}" data-swipe-content>
+                        <div class="flex items-start gap-3">
+                            <span class="icon-bubble h-9 w-9 flex-[0_0_36px] rounded-xl bg-[var(--{{ $tone }}-soft)] text-[var(--{{ $tone }})]">
+                                <x-icon :name="$icon" class="h-4 w-4" />
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-start gap-2">
+                                    <h2 class="min-w-0 flex-1 text-[0.78rem] font-semibold leading-snug">{{ $notification->title }}</h2>
+                                    @if($isUnread)<span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]"></span>@endif
+                                </div>
+                                <p class="mt-1 text-[0.68rem] leading-relaxed text-[var(--muted)]">{{ $notification->body }}</p>
+                                <div class="mt-2 flex items-center gap-3">
+                                    <span class="text-[0.58rem] text-[var(--muted)]">{{ $notification->created_at->diffForHumans() }}</span>
+                                    @if(!empty($notification->data['url']))
+                                        <form method="POST" action="{{ route('notifications.open', $notification) }}">
+                                            @csrf
+                                            <button class="text-[0.6rem] font-semibold text-[var(--brand)]">Open</button>
+                                        </form>
+                                    @endif
+                                    @if($isUnread)
+                                        <form method="POST" action="{{ route('notifications.read', $notification) }}">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button class="text-[0.6rem] font-semibold text-[var(--brand)]">Mark read</button>
+                                        </form>
+                                    @endif
+                                    <form method="POST" action="{{ route('notifications.destroy', $notification) }}" class="ml-auto" data-swipe-form>
                                         @csrf
-                                        <button class="text-[0.6rem] font-semibold text-[var(--brand)]">Open</button>
+                                        @method('DELETE')
+                                        <button class="text-[var(--muted)]" aria-label="Delete notification"><x-icon name="trash-2" class="h-3.5 w-3.5" /></button>
                                     </form>
-                                @endif
-                                @if($isUnread)
-                                    <form method="POST" action="{{ route('notifications.read', $notification) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button class="text-[0.6rem] font-semibold text-[var(--brand)]">Mark read</button>
-                                    </form>
-                                @endif
-                                <form method="POST" action="{{ route('notifications.destroy', $notification) }}" class="ml-auto">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="text-[var(--muted)]" aria-label="Delete notification"><x-icon name="trash-2" class="h-3.5 w-3.5" /></button>
-                                </form>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </article>
+                    </article>
+                </div>
             @endforeach
         </div>
 

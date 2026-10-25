@@ -22,6 +22,7 @@ Route::post('onboarding/skip', [OnboardingController::class, 'skip'])->name('onb
 
 Route::middleware('onboarded')->group(function () {
     Route::get('lock', [LockController::class, 'show'])->name('lock.show');
+    Route::get('lock/unlock', [LockController::class, 'unlockForm'])->name('lock.unlock.show');
     Route::post('lock/unlock', [LockController::class, 'unlock'])->name('lock.unlock');
 });
 

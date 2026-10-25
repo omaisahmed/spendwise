@@ -161,6 +161,23 @@ class NotificationTest extends TestCase
         $this->assertDatabaseCount('app_notifications', 0);
     }
 
+    public function test_notification_rows_support_swipe_to_delete(): void
+    {
+        $notification = AppNotification::record('Budget alert', 'Body', 'budget');
+
+        $this->get(route('notifications.index'))
+            ->assertOk()
+            ->assertSee('data-swipe-row', false)
+            ->assertSee('data-swipe-content', false)
+            ->assertSee('data-swipe-form', false)
+            ->assertSee('action="'.route('notifications.destroy', $notification).'"', false);
+
+        $this->delete(route('notifications.destroy', $notification))
+            ->assertRedirect(route('notifications.index'));
+
+        $this->assertDatabaseMissing('app_notifications', ['id' => $notification->id]);
+    }
+
     public function test_opening_a_notification_marks_it_read_and_redirects_locally(): void
     {
         $notification = AppNotification::record('Budget alert', 'Body', 'budget', [

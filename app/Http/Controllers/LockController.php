@@ -18,6 +18,11 @@ class LockController extends Controller
         return view('lock', ['settings' => $settings]);
     }
 
+    public function unlockForm()
+    {
+        return redirect()->route('lock.show');
+    }
+
     public function unlock(Request $request)
     {
         $settings = AppSettings::get();
