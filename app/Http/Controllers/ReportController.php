@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
+use App\Services\ExportDeliveryService;
 use App\Services\PeriodService;
 use App\Services\ReportService;
 use Carbon\CarbonImmutable;
@@ -27,6 +28,7 @@ class ReportController extends Controller
     public function __construct(
         private ReportService $reports,
         private PeriodService $periods,
+        private ExportDeliveryService $delivery,
     ) {}
 
     public function index(Request $request)
@@ -59,9 +61,7 @@ class ReportController extends Controller
             return redirect()->route('reports.index', $filters)->with('error', $exception->getMessage());
         }
 
-        return response()
-            ->download($file['path'], $file['filename'], ['Content-Type' => $file['mime']])
-            ->deleteFileAfterSend(true);
+        return $this->delivery->deliver($file, 'Your CSV report is ready.');
     }
 
     public function pdf(Request $request)
@@ -74,9 +74,20 @@ class ReportController extends Controller
             return redirect()->route('reports.index', $filters)->with('error', $exception->getMessage());
         }
 
-        return response()
-            ->download($file['path'], $file['filename'], ['Content-Type' => $file['mime']])
-            ->deleteFileAfterSend(true);
+        return $this->delivery->deliver($file, 'Your PDF report is ready.');
+    }
+
+    public function excel(Request $request)
+    {
+        $filters = $this->filters($request);
+
+        try {
+            $file = $this->reports->excel($filters['type'], $filters);
+        } catch (InvalidArgumentException $exception) {
+            return redirect()->route('reports.index', $filters)->with('error', $exception->getMessage());
+        }
+
+        return $this->delivery->deliver($file, 'Your Excel report is ready.');
     }
 
     private function filters(Request $request): array

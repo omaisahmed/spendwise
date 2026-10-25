@@ -80,6 +80,33 @@ class OnboardingLockTest extends TestCase
         $this->get(route('dashboard'))->assertOk();
     }
 
+    public function test_idle_sessions_lock_and_unlock_returns_to_the_intended_page(): void
+    {
+        AppSetting::current()->update(['onboarding_completed' => true]);
+        AppSettings::forget();
+
+        $this->put(route('settings.security'), [
+            'action' => 'enable',
+            'pin' => '1234',
+            'pin_confirmation' => '1234',
+        ])->assertRedirect(route('settings.index'));
+
+        $this->withSession([
+            'spendwise_unlocked' => true,
+            'spendwise_unlocked_at' => now()->subMinutes(31)->timestamp,
+        ])->get(route('reports.index'))
+            ->assertRedirect(route('lock.show'));
+
+        $this->assertFalse(session('spendwise_unlocked'));
+        $this->assertNull(session('spendwise_unlocked_at'));
+
+        $this->post(route('lock.unlock'), ['pin' => '1234'])
+            ->assertRedirect(route('reports.index'));
+
+        $this->assertTrue(session('spendwise_unlocked'));
+        $this->assertGreaterThan(now()->subMinute()->timestamp, session('spendwise_unlocked_at'));
+    }
+
     public function test_onboarding_can_be_skipped_without_creating_default_data(): void
     {
         $this->post(route('onboarding.skip'))->assertRedirect(route('dashboard'));

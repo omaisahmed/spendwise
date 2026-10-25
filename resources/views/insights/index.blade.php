@@ -12,8 +12,8 @@
     $discretionaryPercent = max(0, 100 - $essentialPercent);
     $maxSeries = max(1, ...array_column($series, 'total'));
     $labelEvery = count($series) > 16 ? (int) ceil(count($series) / 8) : 1;
-    $fromDisplay = \Carbon\CarbonImmutable::parse($from)->format('d M Y');
-    $toDisplay = \Carbon\CarbonImmutable::parse($to)->format('d M Y');
+    $fromDisplay = \App\Support\AppSettings::formatDate($from);
+    $toDisplay = \App\Support\AppSettings::formatDate($to);
 @endphp
 
 <div class="stagger">

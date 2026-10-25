@@ -10,7 +10,6 @@ use App\Models\Transaction;
 use App\Services\RecurringService;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class RecurringTransactionController extends Controller
@@ -62,9 +61,17 @@ class RecurringTransactionController extends Controller
         } else {
             $lastDue = $recurring->occurrences()->max('due_date');
             $preview = $recurring->replicate()->forceFill($payload);
-            $payload['next_due_date'] = $lastDue
+            $nextDue = $lastDue
                 ? $this->recurring->nextDueDate($preview, CarbonImmutable::parse($lastDue, config('app.timezone')))
                 : ($startChanged ? $payload['start_date'] : $recurring->next_due_date);
+
+            $payload['next_due_date'] = $nextDue->lessThan($payload['start_date'])
+                ? $payload['start_date']
+                : $nextDue;
+        }
+
+        if ($payload['end_date'] && CarbonImmutable::parse($payload['end_date'])->lessThan($payload['next_due_date'])) {
+            $payload['status'] = RecurringTransaction::STATUS_COMPLETED;
         }
 
         $recurring->update($payload);

@@ -56,7 +56,7 @@
                         </div>
                         <p class="mt-0.5 text-[0.66rem] text-[var(--muted)]">
                             @if($goal->target_date)
-                                Target {{ $goal->target_date->format('d M Y') }}
+                                Target {{ \App\Support\AppSettings::formatDate($goal->target_date) }}
                             @else
                                 No target date
                             @endif
@@ -123,7 +123,7 @@
                         <div class="flex items-center gap-2.5 py-2 {{ !$loop->last ? 'border-b border-[var(--line)]' : '' }}">
                             <span class="legend-dot" style="background: {{ $contribution->amount_minor >= 0 ? 'var(--income)' : 'var(--expense)' }}"></span>
                             <span class="min-w-0 flex-1 truncate text-[0.69rem] text-[var(--muted)]">
-                                {{ $contribution->occurred_at->format('d M Y') }}
+                                {{ \App\Support\AppSettings::formatDate($contribution->occurred_at) }}
                                 @if($contribution->note) · {{ $contribution->note }} @endif
                                 @if($contribution->account) · {{ $contribution->account->name }} @endif
                             </span>

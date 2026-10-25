@@ -16,6 +16,9 @@
     </a>
 
     <div class="flex items-center gap-1.5">
+        <button type="button" class="icon-btn" data-theme-toggle onclick="toggleTheme()" aria-label="Toggle theme">
+            <x-icon name="sun-moon" class="h-[18px] w-[18px]" />
+        </button>
         <button type="button" class="icon-btn" data-privacy-toggle onclick="togglePrivacy()" aria-label="Hide amounts">
             <x-icon name="eye" class="h-[18px] w-[18px]" />
         </button>

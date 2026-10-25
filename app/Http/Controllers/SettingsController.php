@@ -5,16 +5,18 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SettingsRequest;
 use App\Models\Account;
 use App\Services\BackupService;
+use App\Services\ExportDeliveryService;
 use App\Support\AppSettings;
 use App\Support\Money;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 
 class SettingsController extends Controller
 {
-    public function __construct(private BackupService $backups) {}
+    public function __construct(
+        private BackupService $backups,
+        private ExportDeliveryService $delivery,
+    ) {}
 
     public function index()
     {
@@ -50,6 +52,19 @@ class SettingsController extends Controller
         return redirect()->route('settings.index')->with('success', 'Preferences saved.');
     }
 
+    public function theme(Request $request)
+    {
+        $validated = $request->validate([
+            'theme' => ['required', 'in:system,light,dark'],
+        ]);
+
+        $settings = AppSettings::get();
+        $settings->forceFill(['theme' => $validated['theme']])->save();
+        AppSettings::forget();
+
+        return response()->json(['theme' => $validated['theme']]);
+    }
+
     public function security(Request $request)
     {
         $settings = AppSettings::get();
@@ -69,6 +84,7 @@ class SettingsController extends Controller
                 'locked_until' => null,
             ])->save();
             $request->session()->put('spendwise_unlocked', true);
+            $request->session()->put('spendwise_unlocked_at', now()->timestamp);
 
             return redirect()->route('settings.index')->with('success', 'App lock disabled.');
         }
@@ -86,6 +102,7 @@ class SettingsController extends Controller
         $settings->setPin($pin);
         AppSettings::forget();
         $request->session()->put('spendwise_unlocked', true);
+        $request->session()->put('spendwise_unlocked_at', now()->timestamp);
 
         return redirect()->route('settings.index')->with('success', $wasEnabled ? 'PIN updated.' : 'App lock enabled.');
     }
@@ -94,9 +111,7 @@ class SettingsController extends Controller
     {
         $file = $this->backups->export();
 
-        return response()
-            ->download($file['path'], $file['filename'], ['Content-Type' => $file['mime']])
-            ->deleteFileAfterSend(false);
+        return $this->delivery->deliver($file, 'Your SpendWise backup is ready.');
     }
 
     public function restore(Request $request)
@@ -119,7 +134,6 @@ class SettingsController extends Controller
         }
 
         AppSettings::forget();
-        $request->session()->put('spendwise_unlocked', true);
 
         $count = array_sum($result['counts']);
 

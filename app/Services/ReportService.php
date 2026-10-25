@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\Account;
-use App\Models\Budget;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
+use App\Support\AppSettings;
 use App\Support\Money;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
@@ -13,6 +13,15 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ReportService
 {
@@ -127,7 +136,7 @@ class ReportService
 
         $pdf = Pdf::loadView('reports.pdf', [
             'report' => $data,
-            'currency' => \App\Support\AppSettings::currency(),
+            'currency' => AppSettings::currency(),
         ])->setPaper('a4');
 
         File::put($path, $pdf->output());
@@ -139,9 +148,249 @@ class ReportService
         ];
     }
 
+    public function excel(string $type, array $filters): array
+    {
+        $data = $this->data($type, $filters);
+        $currency = AppSettings::currency();
+        $path = $this->exportPath('xlsx');
+
+        $spreadsheet = new Spreadsheet;
+        $spreadsheet->getProperties()
+            ->setCreator('SpendWise')
+            ->setTitle($data['title'])
+            ->setDescription('SpendWise '.$data['title'].' from '.$data['start']->format('Y-m-d').' to '.$data['end']->format('Y-m-d'));
+
+        $this->writeExcelSummary($spreadsheet->getActiveSheet()->setTitle('Summary'), $data, $currency);
+        $this->writeExcelTransactions($spreadsheet->createSheet()->setTitle('Transactions'), $data, $currency);
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return [
+            'path' => $path,
+            'filename' => $this->filename($type, 'xlsx'),
+            'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+    }
+
+    private function writeExcelSummary(Worksheet $sheet, array $data, string $currency): void
+    {
+        $sheet->mergeCells('A1:E1');
+        $this->excelText($sheet, 'A1', 'SpendWise '.$data['title']);
+        $sheet->getStyle('A1:E1')->applyFromArray([
+            'font' => ['bold' => true, 'size' => 16, 'color' => ['argb' => 'FF171B34']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FFEEEDFF']],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension(1)->setRowHeight(30);
+
+        $meta = [
+            ['Generated', $data['generated_at']->format('Y-m-d H:i')],
+            ['Period', $data['start']->format('Y-m-d').' to '.$data['end']->format('Y-m-d')],
+            ['Currency', $currency],
+        ];
+
+        $row = 2;
+        foreach ($meta as [$label, $value]) {
+            $this->excelText($sheet, 'A'.$row, $label);
+            $this->excelText($sheet, 'B'.$row, $value);
+            $sheet->getStyle('A'.$row)->getFont()->setBold(true)->getColor()->setARGB('FF6B7185');
+            $row++;
+        }
+
+        $row++;
+        $this->excelSectionTitle($sheet, $row, 'Summary', 5);
+        $this->excelHeaderRow($sheet, $row, ['Metric', 'Amount ('.$currency.')']);
+        $totals = [
+            ['Income', $data['totals']['income'], 'FF16A878'],
+            ['Expenses', $data['totals']['expenses'], 'FFF05B6B'],
+            ['Balance', $data['totals']['balance'], 'FF635BFF'],
+        ];
+        foreach ($totals as [$label, $amount, $color]) {
+            $this->excelText($sheet, 'A'.$row, $label);
+            $this->excelAmount($sheet, 'B'.$row, $amount);
+            $sheet->getStyle('A'.$row.':B'.$row)->getFont()->setBold(true)->getColor()->setARGB($color);
+            $row++;
+        }
+
+        $showsCategories = in_array($data['type'], ['category', 'monthly_summary', 'custom', 'expense'], true);
+        if ($showsCategories && count($data['categories'])) {
+            $row++;
+            $this->excelSectionTitle($sheet, $row, 'Category breakdown', 5);
+            $this->excelHeaderRow($sheet, $row, ['Category', 'Entries', 'Total ('.$currency.')', 'Share', 'Essential']);
+            foreach ($data['categories'] as $category) {
+                $this->excelText($sheet, 'A'.$row, $category['name']);
+                $this->excelInteger($sheet, 'B'.$row, $category['entries']);
+                $this->excelAmount($sheet, 'C'.$row, $category['total']);
+                $this->excelPercent($sheet, 'D'.$row, Money::percent($category['total'], max(1, $data['totals']['expenses'])));
+                $this->excelText($sheet, 'E'.$row, $category['is_essential'] ? 'Yes' : 'No');
+                $row++;
+            }
+        }
+
+        $showsAccounts = in_array($data['type'], ['account', 'custom'], true);
+        if ($showsAccounts) {
+            $row++;
+            $this->excelSectionTitle($sheet, $row, 'Accounts', 4);
+            $this->excelHeaderRow($sheet, $row, ['Account', 'Type', 'Opening balance', 'Current balance']);
+            foreach ($data['accounts'] as $entry) {
+                $this->excelText($sheet, 'A'.$row, $entry['account']->name);
+                $this->excelText($sheet, 'B'.$row, Account::TYPES[$entry['account']->type] ?? ucfirst($entry['account']->type));
+                $this->excelAmount($sheet, 'C'.$row, $entry['account']->opening_balance_minor);
+                $this->excelAmount($sheet, 'D'.$row, $entry['balance']);
+                $row++;
+            }
+        }
+
+        $showsBudgets = in_array($data['type'], ['budget', 'custom', 'monthly_summary'], true) && count($data['budgets']);
+        if ($showsBudgets) {
+            $row++;
+            $this->excelSectionTitle($sheet, $row, 'Budget performance', 7);
+            $this->excelHeaderRow($sheet, $row, ['Budget', 'Month', 'Budgeted', 'Spent', 'Remaining', 'Used', 'Status']);
+            foreach ($data['budgets'] as $budget) {
+                $this->excelText($sheet, 'A'.$row, $budget['budget']->name);
+                $this->excelText($sheet, 'B'.$row, $budget['budget']->month);
+                $this->excelAmount($sheet, 'C'.$row, $budget['budget']->amount_minor);
+                $this->excelAmount($sheet, 'D'.$row, $budget['spent']);
+                $this->excelAmount($sheet, 'E'.$row, $budget['remaining']);
+                $this->excelPercent($sheet, 'F'.$row, $budget['percent']);
+                $this->excelText($sheet, 'G'.$row, ucfirst($budget['status']));
+                $row++;
+            }
+        }
+
+        foreach ([
+            'A' => 30,
+            'B' => 20,
+            'C' => 18,
+            'D' => 16,
+            'E' => 16,
+            'F' => 14,
+            'G' => 14,
+        ] as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
+        }
+
+        $sheet->freezePane('A7');
+        $sheet->setSelectedCell('A1');
+    }
+
+    private function writeExcelTransactions(Worksheet $sheet, array $data, string $currency): void
+    {
+        $headers = [
+            'Date', 'Time', 'Type', 'Category', 'From account', 'To account', 'Merchant / payee',
+            'Payment method', 'Notes', 'Tags', 'Amount ('.$currency.')', 'Refund',
+        ];
+
+        $row = 1;
+        $this->excelHeaderRow($sheet, $row, $headers);
+
+        foreach ($data['transactions'] as $transaction) {
+            $this->excelText($sheet, 'A'.$row, $transaction->occurred_at->format('Y-m-d'));
+            $this->excelText($sheet, 'B'.$row, $transaction->occurred_at->format('H:i'));
+            $this->excelText($sheet, 'C'.$row, ucfirst($transaction->type));
+            $this->excelText($sheet, 'D'.$row, $transaction->category?->name);
+            $this->excelText($sheet, 'E'.$row, $transaction->account?->name);
+            $this->excelText($sheet, 'F'.$row, $transaction->toAccount?->name);
+            $this->excelText($sheet, 'G'.$row, $transaction->merchant);
+            $this->excelText($sheet, 'H'.$row, $transaction->paymentMethodLabel());
+            $this->excelText($sheet, 'I'.$row, $transaction->notes);
+            $this->excelText($sheet, 'J'.$row, $transaction->tags->pluck('name')->implode(', '));
+            $this->excelAmount($sheet, 'K'.$row, $transaction->is_refund ? -$transaction->amount_minor : $transaction->amount_minor);
+            $this->excelText($sheet, 'L'.$row, $transaction->is_refund ? 'Yes' : 'No');
+
+            if ($row % 2 === 0) {
+                $sheet->getStyle('A'.$row.':L'.$row)->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FFFAFBFD');
+            }
+
+            $row++;
+        }
+
+        foreach ([
+            'A' => 12,
+            'B' => 9,
+            'C' => 11,
+            'D' => 20,
+            'E' => 18,
+            'F' => 18,
+            'G' => 26,
+            'H' => 17,
+            'I' => 34,
+            'J' => 22,
+            'K' => 16,
+            'L' => 9,
+        ] as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
+        }
+
+        $sheet->freezePane('A2');
+        $sheet->setAutoFilter('A1:L'.max(1, $row - 1));
+        $sheet->setSelectedCell('A2');
+    }
+
+    private function excelSectionTitle(Worksheet $sheet, int &$row, string $title, int $columns): void
+    {
+        $last = Coordinate::stringFromColumnIndex($columns);
+        $sheet->mergeCells('A'.$row.':'.$last.$row);
+        $this->excelText($sheet, 'A'.$row, $title);
+        $sheet->getStyle('A'.$row.':'.$last.$row)->applyFromArray([
+            'font' => ['bold' => true, 'size' => 11, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF171B34']],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension($row)->setRowHeight(22);
+        $row++;
+    }
+
+    private function excelHeaderRow(Worksheet $sheet, int &$row, array $headers): void
+    {
+        $last = Coordinate::stringFromColumnIndex(count($headers));
+        foreach ($headers as $index => $header) {
+            $column = Coordinate::stringFromColumnIndex($index + 1);
+            $this->excelText($sheet, $column.$row, $header);
+        }
+
+        $sheet->getStyle('A'.$row.':'.$last.$row)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['argb' => 'FF635BFF']],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['bottom' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['argb' => 'FF4E46E5']]],
+        ]);
+        $sheet->getRowDimension($row)->setRowHeight(20);
+        $row++;
+    }
+
+    private function excelText(Worksheet $sheet, string $coordinate, mixed $value): void
+    {
+        $sheet->setCellValueExplicit($coordinate, (string) ($value ?? ''), DataType::TYPE_STRING);
+    }
+
+    private function excelAmount(Worksheet $sheet, string $coordinate, int $minor): void
+    {
+        $sheet->setCellValue($coordinate, (float) Money::toDecimal($minor));
+        $sheet->getStyle($coordinate)->getNumberFormat()->setFormatCode('#,##0.00');
+    }
+
+    private function excelInteger(Worksheet $sheet, string $coordinate, int $value): void
+    {
+        $sheet->setCellValue($coordinate, $value);
+        $sheet->getStyle($coordinate)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_NUMBER);
+    }
+
+    private function excelPercent(Worksheet $sheet, string $coordinate, int $value): void
+    {
+        $sheet->setCellValue($coordinate, $value);
+        $sheet->getStyle($coordinate)->getNumberFormat()->setFormatCode('0"%"');
+    }
+
     private function csvSections(array $data): array
     {
-        $currency = \App\Support\AppSettings::currency();
+        $currency = AppSettings::currency();
         $sections = [];
 
         $sections[] = ['rows' => [

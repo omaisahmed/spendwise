@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\AppNotification;
-use App\Models\Account;
 use App\Models\Category;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
@@ -118,6 +117,52 @@ class RecurringWorkflowTest extends TestCase
         $this->assertSame(0, $this->recurring->refreshDueNotifications());
         $this->assertDatabaseCount('app_notifications', 1);
         $this->assertSame('recurring', AppNotification::query()->firstOrFail()->type);
+        $this->assertSame(route('recurring.index'), AppNotification::query()->firstOrFail()->data['url']);
+    }
+
+    public function test_updating_a_started_schedule_respects_a_later_start_date_and_end_date(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-01-01 10:00:00'));
+
+        $schedule = $this->schedule([
+            'start_date' => '2026-01-01',
+            'next_due_date' => '2026-01-01',
+        ]);
+
+        $this->recurring->markPaid($schedule, CarbonImmutable::parse('2026-01-01'));
+
+        $this->put(route('recurring.update', $schedule), [
+            'type' => Transaction::TYPE_EXPENSE,
+            'amount' => '500.00',
+            'category_id' => $schedule->category_id,
+            'account_id' => $schedule->account_id,
+            'frequency' => 'monthly',
+            'anchor_day' => 20,
+            'start_date' => '2026-02-15',
+            'end_date' => '2026-02-16',
+            'merchant' => 'Test subscription',
+            'payment_method' => 'cash',
+            'reminder_enabled' => '1',
+        ])->assertRedirect(route('recurring.index'));
+
+        $schedule->refresh();
+
+        $this->assertSame('2026-02-20', $schedule->next_due_date->format('Y-m-d'));
+        $this->assertSame(RecurringTransaction::STATUS_COMPLETED, $schedule->status);
+    }
+
+    public function test_schedules_with_reminders_disabled_do_not_create_notifications(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-01-15 10:00:00'));
+
+        $this->schedule([
+            'start_date' => '2026-01-10',
+            'next_due_date' => '2026-01-10',
+            'reminder_enabled' => false,
+        ]);
+
+        $this->assertSame(0, $this->recurring->refreshDueNotifications());
+        $this->assertDatabaseCount('app_notifications', 0);
     }
 
     private function schedule(array $overrides = []): RecurringTransaction

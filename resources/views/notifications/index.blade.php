@@ -53,6 +53,12 @@
                             <p class="mt-1 text-[0.68rem] leading-relaxed text-[var(--muted)]">{{ $notification->body }}</p>
                             <div class="mt-2 flex items-center gap-3">
                                 <span class="text-[0.58rem] text-[var(--muted)]">{{ $notification->created_at->diffForHumans() }}</span>
+                                @if(!empty($notification->data['url']))
+                                    <form method="POST" action="{{ route('notifications.open', $notification) }}">
+                                        @csrf
+                                        <button class="text-[0.6rem] font-semibold text-[var(--brand)]">Open</button>
+                                    </form>
+                                @endif
                                 @if($isUnread)
                                     <form method="POST" action="{{ route('notifications.read', $notification) }}">
                                         @csrf

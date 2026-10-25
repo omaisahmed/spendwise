@@ -83,7 +83,7 @@
             <div>
                 <p class="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[var(--brand)]">Preview</p>
                 <h2 class="mt-1 text-[1.1rem] font-bold tracking-tight">{{ $report['title'] }}</h2>
-                <p class="mt-0.5 text-[0.66rem] text-[var(--muted)]">{{ $report['start']->format('d M Y') }} — {{ $report['end']->format('d M Y') }}</p>
+                <p class="mt-0.5 text-[0.66rem] text-[var(--muted)]">{{ \App\Support\AppSettings::formatDate($report['start']) }} — {{ \App\Support\AppSettings::formatDate($report['end']) }}</p>
             </div>
             <span class="badge badge-muted">{{ $report['transaction_count'] }} {{ Str::plural('entry', $report['transaction_count']) }}</span>
         </div>
@@ -103,9 +103,10 @@
             </div>
         </div>
 
-        <div class="mt-2.5 grid grid-cols-2 gap-2">
-            <a href="{{ route('reports.csv', $exportQuery) }}" class="btn btn-secondary btn-sm"><x-icon name="file-text" class="h-3.5 w-3.5" /> CSV</a>
-            <a href="{{ route('reports.pdf', $exportQuery) }}" class="btn btn-primary btn-sm"><x-icon name="file-down" class="h-3.5 w-3.5" /> PDF</a>
+        <div class="mt-2.5 grid grid-cols-3 gap-2">
+            <a href="{{ route('reports.csv', $exportQuery) }}" class="btn btn-secondary btn-sm" data-background-lock-ignore><x-icon name="file-text" class="h-3.5 w-3.5" /> CSV</a>
+            <a href="{{ route('reports.pdf', $exportQuery) }}" class="btn btn-secondary btn-sm" data-background-lock-ignore><x-icon name="file-down" class="h-3.5 w-3.5" /> PDF</a>
+            <a href="{{ route('reports.excel', $exportQuery) }}" class="btn btn-primary btn-sm" data-background-lock-ignore><x-icon name="file-spreadsheet" class="h-3.5 w-3.5" /> Excel</a>
         </div>
     </section>
 
@@ -213,6 +214,6 @@
         @endif
     </section>
 
-    <p class="mt-5 text-center text-[0.58rem] text-[var(--muted)]">Generated {{ $report['generated_at']->format('d M Y, H:i') }}</p>
+    <p class="mt-5 text-center text-[0.58rem] text-[var(--muted)]">Generated {{ \App\Support\AppSettings::formatDateTime($report['generated_at']) }}</p>
 </div>
 @endsection

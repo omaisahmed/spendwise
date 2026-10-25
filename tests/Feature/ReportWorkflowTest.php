@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Transaction;
 use App\Services\ReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Concerns\InteractsWithSpendWise;
 use Tests\TestCase;
 
@@ -96,6 +98,50 @@ class ReportWorkflowTest extends TestCase
             'type' => 'custom',
             'from' => '2026-10-10',
             'to' => '2026-10-20',
+        ]))->assertOk()->assertDownload();
+    }
+
+    public function test_excel_export_contains_styled_summary_and_transactions(): void
+    {
+        $account = $this->defaultAccount();
+        $food = $this->category('expense', 'Food & Dining');
+
+        Transaction::query()->create([
+            'type' => 'expense',
+            'amount_minor' => 12550,
+            'category_id' => $food->id,
+            'account_id' => $account->id,
+            'occurred_at' => now(),
+            'payment_method' => 'cash',
+            'merchant' => 'Cafe',
+        ]);
+
+        $file = app(ReportService::class)->excel('monthly_summary', [
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->toDateString(),
+        ]);
+
+        try {
+            $this->assertFileExists($file['path']);
+            $this->assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $file['mime']);
+
+            $spreadsheet = IOFactory::load($file['path']);
+
+            $this->assertSame('Summary', $spreadsheet->getSheet(0)->getTitle());
+            $this->assertSame('SpendWise Monthly summary', $spreadsheet->getSheet(0)->getCell('A1')->getValue());
+            $this->assertSame('Transactions', $spreadsheet->getSheet(1)->getTitle());
+            $this->assertSame('Cafe', $spreadsheet->getSheet(1)->getCell('G2')->getValue());
+            $this->assertSame(125.5, $spreadsheet->getSheet(1)->getCell('K2')->getValue());
+
+            $spreadsheet->disconnectWorksheets();
+        } finally {
+            File::delete($file['path']);
+        }
+
+        $this->get(route('reports.excel', [
+            'type' => 'monthly_summary',
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->toDateString(),
         ]))->assertOk()->assertDownload();
     }
 }

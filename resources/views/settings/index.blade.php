@@ -101,7 +101,7 @@
             <div class="grid grid-cols-3 gap-2">
                 @foreach(['system' => ['monitor', 'System'], 'light' => ['sun', 'Light'], 'dark' => ['moon', 'Dark']] as $value => $option)
                     <label class="theme-tile relative">
-                        <input type="radio" name="theme" value="{{ $value }}" class="peer sr-only" @checked(old('theme', $settings->theme) === $value)>
+                        <input type="radio" name="theme" value="{{ $value }}" class="peer sr-only" data-theme-option @checked(old('theme', $settings->theme) === $value) onchange="setTheme(this.value)">
                         <span class="flex flex-col items-center gap-1.5 rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] py-3 text-[var(--muted)] transition peer-checked:border-[var(--brand)] peer-checked:bg-[var(--brand-soft)] peer-checked:text-[var(--brand)]">
                             <x-icon :name="$option[0]" class="h-4 w-4" />
                             <span class="text-[0.63rem] font-semibold">{{ $option[1] }}</span>
@@ -154,6 +154,7 @@
             </form>
             <form method="POST" action="{{ route('settings.security') }}" class="space-y-2.5 border-t border-[var(--line)] pt-3">
                 @csrf
+                @method('PUT')
                 <input type="hidden" name="action" value="change">
                 <div>
                     <label class="label" for="current_pin">Current PIN</label>
@@ -173,6 +174,7 @@
             </form>
             <form method="POST" action="{{ route('settings.security') }}" class="mt-2 border-t border-[var(--line)] pt-3" onsubmit="return confirm('Turn off app lock?')">
                 @csrf
+                @method('PUT')
                 <input type="hidden" name="action" value="disable">
                 <div class="flex items-end gap-2">
                     <div class="flex-1">
@@ -185,6 +187,7 @@
         @else
             <form method="POST" action="{{ route('settings.security') }}" class="space-y-2.5 border-t border-[var(--line)] pt-3">
                 @csrf
+                @method('PUT')
                 <input type="hidden" name="action" value="enable">
                 <div class="grid grid-cols-2 gap-2.5">
                     <div>
@@ -210,7 +213,7 @@
                 <p class="text-[0.63rem] text-[var(--muted)]">Everything stays on this device.</p>
             </div>
         </div>
-        <a href="{{ route('settings.backup') }}" class="btn btn-secondary btn-sm w-full"><x-icon name="download" class="h-3.5 w-3.5" /> Download JSON backup</a>
+        <a href="{{ route('settings.backup') }}" class="btn btn-secondary btn-sm w-full" data-background-lock-ignore><x-icon name="download" class="h-3.5 w-3.5" /> Download JSON backup</a>
         <form method="POST" action="{{ route('settings.restore') }}" enctype="multipart/form-data" class="mt-3 space-y-2.5 border-t border-[var(--line)] pt-3" onsubmit="return confirm('Restoring replaces all current data. Continue?')">
             @csrf
             <div>

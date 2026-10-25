@@ -49,7 +49,7 @@
                                     </div>
                                     <x-money :amount="$schedule->amount_minor" class="shrink-0 text-[0.9rem] font-bold" />
                                 </div>
-                                <p class="mt-2 text-[0.64rem] font-medium text-[var(--warning)]">Due {{ $schedule->next_due_date->format('d M Y') }}</p>
+                                <p class="mt-2 text-[0.64rem] font-medium text-[var(--warning)]">Due {{ \App\Support\AppSettings::formatDate($schedule->next_due_date) }}</p>
                             </div>
                         </div>
                         <div class="mt-3 flex gap-2">

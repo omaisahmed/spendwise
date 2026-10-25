@@ -59,12 +59,15 @@ Route::middleware(['onboarded', 'unlocked', 'reminders'])->group(function () {
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('reports/csv', [ReportController::class, 'csv'])->name('reports.csv');
     Route::get('reports/pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
+    Route::get('reports/excel', [ReportController::class, 'excel'])->name('reports.excel');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::patch('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+    Route::post('notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 
+    Route::patch('settings/theme', [SettingsController::class, 'theme'])->name('settings.theme');
     Route::get('settings/backup', [SettingsController::class, 'backup'])->name('settings.backup');
     Route::post('settings/restore', [SettingsController::class, 'restore'])->name('settings.restore');
     Route::put('settings/security', [SettingsController::class, 'security'])->name('settings.security');

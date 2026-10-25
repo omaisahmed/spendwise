@@ -162,6 +162,7 @@ class RecurringService
 
         $dueSchedules = RecurringTransaction::query()
             ->due()
+            ->where('reminder_enabled', true)
             ->with(['category'])
             ->get();
 
@@ -172,9 +173,12 @@ class RecurringService
                 [
                     'title' => $schedule->type === Transaction::TYPE_INCOME ? 'Expected income due' : 'Upcoming payment due',
                     'body' => ($schedule->merchant ?: $schedule->category?->name ?: 'Recurring transaction')
-                        .' · due '.$schedule->next_due_date->format('d M Y'),
+                        .' is due '.$schedule->next_due_date->format('d M Y').'.',
                     'type' => 'recurring',
-                    'data' => ['recurring_id' => $schedule->id],
+                    'data' => [
+                        'url' => route('recurring.index'),
+                        'recurring_id' => $schedule->id,
+                    ],
                 ]
             );
 

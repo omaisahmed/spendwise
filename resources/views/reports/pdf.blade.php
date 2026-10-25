@@ -50,7 +50,6 @@
         $showsCategories = in_array($report['type'], ['category', 'monthly_summary', 'custom', 'expense'], true);
         $showsAccounts = in_array($report['type'], ['account', 'custom'], true);
         $showsBudgets = in_array($report['type'], ['budget', 'custom', 'monthly_summary'], true) && count($report['budgets']) > 0;
-        $symbol = \App\Support\Money::SYMBOLS[$currency] ?? $currency;
     @endphp
 
     <div class="header">
@@ -62,8 +61,8 @@
         </table>
         <table class="meta" style="width:100%;">
             <tr>
-                <td>{{ $report['start']->format('d M Y') }} — {{ $report['end']->format('d M Y') }} · {{ $currency }}</td>
-                <td class="meta-right">Generated {{ $report['generated_at']->format('d M Y, H:i') }}</td>
+                <td>{{ \App\Support\AppSettings::formatDate($report['start']) }} — {{ \App\Support\AppSettings::formatDate($report['end']) }} · {{ $currency }}</td>
+                <td class="meta-right">Generated {{ \App\Support\AppSettings::formatDateTime($report['generated_at']) }}</td>
             </tr>
         </table>
     </div>
@@ -71,9 +70,9 @@
     <div class="section">
         <table class="summary">
             <tr>
-                <td><div class="label">Income</div><div class="value income">{{ $symbol }} {{ \App\Support\Money::format($report['totals']['income']) }}</div></td>
-                <td><div class="label">Expenses</div><div class="value expense">{{ $symbol }} {{ \App\Support\Money::format($report['totals']['expenses']) }}</div></td>
-                <td><div class="label">Net balance</div><div class="value brand-text">{{ $symbol }} {{ \App\Support\Money::format($report['totals']['balance']) }}</div></td>
+                <td><div class="label">Income</div><div class="value income">{{ \App\Support\Money::format($report['totals']['income']) }}</div></td>
+                <td><div class="label">Expenses</div><div class="value expense">{{ \App\Support\Money::format($report['totals']['expenses']) }}</div></td>
+                <td><div class="label">Net balance</div><div class="value brand-text">{{ \App\Support\Money::format($report['totals']['balance']) }}</div></td>
             </tr>
         </table>
     </div>
@@ -89,7 +88,7 @@
                             <tr>
                                 <td>{{ $category['name'] }}</td>
                                 <td class="center">{{ $category['entries'] }}</td>
-                                <td class="right">{{ $symbol }} {{ \App\Support\Money::format($category['total']) }}</td>
+                                <td class="right">{{ \App\Support\Money::format($category['total']) }}</td>
                                 <td class="right">{{ \App\Support\Money::percent($category['total'], max(1, $report['totals']['expenses'])) }}%</td>
                                 <td>{{ $category['is_essential'] ? 'Yes' : 'No' }}</td>
                             </tr>
@@ -112,8 +111,8 @@
                         <tr>
                             <td>{{ $entry['account']->name }}</td>
                             <td>{{ ucfirst($entry['account']->type) }}</td>
-                            <td class="right">{{ $symbol }} {{ \App\Support\Money::format($entry['account']->opening_balance_minor) }}</td>
-                            <td class="right">{{ $symbol }} {{ \App\Support\Money::format($entry['balance']) }}</td>
+                            <td class="right">{{ \App\Support\Money::format($entry['account']->opening_balance_minor) }}</td>
+                            <td class="right">{{ \App\Support\Money::format($entry['balance']) }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -131,9 +130,9 @@
                         <tr>
                             <td>{{ $budget['budget']->name }}</td>
                             <td>{{ $budget['budget']->month }}</td>
-                            <td class="right">{{ $symbol }} {{ \App\Support\Money::format($budget['budget']->amount_minor) }}</td>
-                            <td class="right">{{ $symbol }} {{ \App\Support\Money::format($budget['spent']) }}</td>
-                            <td class="right">{{ $symbol }} {{ \App\Support\Money::format($budget['remaining']) }}</td>
+                            <td class="right">{{ \App\Support\Money::format($budget['budget']->amount_minor) }}</td>
+                            <td class="right">{{ \App\Support\Money::format($budget['spent']) }}</td>
+                            <td class="right">{{ \App\Support\Money::format($budget['remaining']) }}</td>
                             <td class="right">{{ $budget['percent'] }}%</td>
                         </tr>
                     @endforeach
@@ -160,7 +159,7 @@
                 <tbody>
                     @foreach($report['transactions'] as $transaction)
                         <tr>
-                            <td>{{ $transaction->occurred_at->format('d M Y') }}<br><span class="muted">{{ $transaction->occurred_at->format('H:i') }}</span></td>
+                            <td>{{ \App\Support\AppSettings::formatDate($transaction->occurred_at) }}<br><span class="muted">{{ $transaction->occurred_at->format('H:i') }}</span></td>
                             <td>{{ ucfirst($transaction->type) }}</td>
                             <td>
                                 {{ $transaction->category?->name ?? '—' }}
@@ -173,7 +172,7 @@
                             <td>{{ $transaction->paymentMethodLabel() }}</td>
                             <td>{{ \Illuminate\Support\Str::limit((string) $transaction->notes, 60) ?: '—' }}</td>
                             <td class="right {{ $transaction->type === 'income' ? 'income' : ($transaction->type === 'expense' ? 'expense' : '') }}">
-                                {{ $transaction->is_refund ? '-' : '' }}{{ $symbol }} {{ \App\Support\Money::format($transaction->amount_minor) }}
+                                {{ \App\Support\Money::format($transaction->is_refund ? -$transaction->amount_minor : $transaction->amount_minor) }}
                             </td>
                         </tr>
                     @endforeach

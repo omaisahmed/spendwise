@@ -40,6 +40,7 @@ class LockController extends Controller
         AppSettings::forget();
         $request->session()->regenerate();
         $request->session()->put('spendwise_unlocked', true);
+        $request->session()->put('spendwise_unlocked_at', now()->timestamp);
 
         return redirect()->intended(route('dashboard'));
     }
@@ -47,9 +48,18 @@ class LockController extends Controller
     public function lock(Request $request)
     {
         $request->session()->put('spendwise_unlocked', false);
+        $request->session()->forget('spendwise_unlocked_at');
 
         if (! AppSettings::get()->app_lock_enabled) {
             return redirect()->route('settings.index')->with('error', 'Turn on app lock first.');
+        }
+
+        $referer = $request->headers->get('referer');
+        $host = $referer ? parse_url($referer, PHP_URL_HOST) : null;
+        $scheme = $referer ? parse_url($referer, PHP_URL_SCHEME) : null;
+
+        if ($referer && $host === $request->getHost() && in_array($scheme, ['http', 'https'], true)) {
+            $request->session()->put('url.intended', $referer);
         }
 
         return redirect()->route('lock.show');

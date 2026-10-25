@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AppSetting;
+use App\Support\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\Concerns\InteractsWithSpendWise;
@@ -54,6 +55,46 @@ class SettingsTest extends TestCase
             'theme' => 'neon',
             'date_format' => 'd/m/Y',
         ])->assertSessionHasErrors(['currency', 'month_start_day', 'budget_warning_threshold', 'theme']);
+    }
+
+    public function test_date_format_setting_formats_full_dates(): void
+    {
+        $date = now()->setDate(2026, 10, 26);
+
+        AppSetting::current()->update(['date_format' => 'Y-m-d']);
+        AppSettings::forget();
+
+        $this->assertSame('2026-10-26', AppSettings::formatDate($date));
+        $this->assertSame('2026-10-26, '.$date->format('H:i'), AppSettings::formatDateTime($date));
+
+        $this->put(route('settings.update'), [
+            'currency' => 'PKR',
+            'month_start_day' => 1,
+            'budget_warning_threshold' => 80,
+            'theme' => 'system',
+            'date_format' => 'M d, Y',
+        ])->assertRedirect(route('settings.index'));
+
+        $this->assertSame('Oct 26, 2026', AppSettings::formatDate($date));
+    }
+
+    public function test_theme_can_be_applied_immediately_and_is_persisted(): void
+    {
+        $this->patchJson(route('settings.theme'), ['theme' => 'dark'])
+            ->assertOk()
+            ->assertJson(['theme' => 'dark']);
+
+        $this->assertSame('dark', AppSetting::current()->theme);
+
+        $this->patchJson(route('settings.theme'), ['theme' => 'system'])
+            ->assertOk()
+            ->assertJson(['theme' => 'system']);
+
+        $this->assertSame('system', AppSetting::current()->theme);
+
+        $this->patchJson(route('settings.theme'), ['theme' => 'neon'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('theme');
     }
 
     public function test_pin_changes_require_the_current_pin_and_can_be_disabled(): void
